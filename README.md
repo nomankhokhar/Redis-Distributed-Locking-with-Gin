@@ -39,8 +39,8 @@ Ensure that Redis server is running and accessible from the application. Modify 
 
 ```go
 rdb = redis.NewClient(&redis.Options{
-    Addr:     "redis-12200.c330.asia-south1-1.gce.cloud.redislabs.com:12200",
-    Password: "td0g9FgW67e7BZx1RMx5UVNceFSvVkKa",
+    Addr:     "redis-url",
+    Password: "password",
     DB:       0,
 })
 ```
