@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"time"
-	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
@@ -32,7 +31,7 @@ func main() {
 	router.GET("/api/checklocktemplate/:id", checkLockTemplateHandler)
 	router.DELETE("/api/releaselocktemplate/:id", releaseLockTemplateHandler)
 	router.GET("/api/alltemplates", getAllTemplatesHandler)
-	router.PUT("/api/increaselocktemplate/:id", increaseLockTemplateHandler)
+	// router.PUT("/api/increaselocktemplate/:id", increaseLockTemplateHandler)
 
 	router.Run(":8080")
 }
@@ -76,15 +75,14 @@ func getAllTemplatesHandler(c *gin.Context) {
 
 	// Iterate over each key and get its remaining expiration time
 	for _, key := range keys {
-		expiration, err := rdb.TTL(ctx, key).Result()
+		// Get expiration time of the locked template
+		_, err := rdb.TTL(ctx, key).Result()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
 			return
 		}
 
-		// Convert expiration time to seconds without scientific notation
-		expirationSeconds := int(expiration.Seconds())
-		templates[key] = gin.H{"id": key, "time": expirationSeconds}
+		templates[key] = gin.H{"id": key}
 	}
 
 	c.JSON(http.StatusOK, templates)
@@ -134,47 +132,23 @@ func releaseLockTemplateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
 }
 
-func increaseLockTemplateHandler(c *gin.Context) {
-	id := c.Param("id")
+// func increaseLockTemplateHandler(c *gin.Context) {
+// 	id := c.Param("id")
 
-	// Check if the template exists
-	templateData, err := rdb.HGet(ctx, "locked_templates", id).Result()
-	if err != nil {
-		if err == redis.Nil {
-			c.JSON(http.StatusNotFound, gin.H{"message": "template not locked"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve template"})
-		return
-	}
+// 	// Set expiration time to 1 minute
+// 	expiration := time.Minute
 
-	// Parse the template data
-	var templateInfo struct {
-		ID   string `json:"id"`
-		Msg  string `json:"msg"`
-		Time int    `json:"time"`
-	}
-	err = json.Unmarshal([]byte(templateData), &templateInfo)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse template data"})
-		return
-	}
+// 	err := rdb.HSet(ctx, "locked_templates", id, id).Err()
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
+// 		return
+// 	}
 
-	// Increase expiration time by one minute
-	templateInfo.Time += 60
+// 	err := rdb.Expire(ctx, "locked_templates", expiration).Err()
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set expiration time"})
+// 		return
+// 	}
 
-	// Update template data in Redis
-	updatedTemplateData, err := json.Marshal(templateInfo)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal template data"})
-		return
-	}
-
-	err = rdb.HSet(ctx, "locked_templates", id, updatedTemplateData).Err()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update expiration time"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"id": id, "new_time": templateInfo.Time, "msg": "expiration time increased"})
-}
+// 	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked successfully"})	
+// }
