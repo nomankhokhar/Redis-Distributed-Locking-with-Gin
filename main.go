@@ -2,15 +2,22 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
-	"encoding/json"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
 
 var ctx = context.Background()
 var rdb *redis.Client
+
+type templateInfo struct {
+	ID   string `json:"id"`
+	Msg  string `json:"msg"`
+	Time int    `json:"time"`
+}
 
 func init() {
 	rdb = redis.NewClient(&redis.Options{
@@ -54,7 +61,20 @@ func lockTemplateHandler(c *gin.Context) {
 	// Set expiration time to 1 minute
 	expiration := time.Minute
 
-	err = rdb.HSet(ctx, "locked_templates", id, id).Err()
+	template := templateInfo{
+		ID:   id,
+		Msg:  "template locked successfully",
+		Time: int(expiration.Seconds()),
+	}
+
+	// Marshal templateInfo struct to JSON
+	templateJSON, err := json.Marshal(template)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal template data"})
+		return
+	}
+
+	err = rdb.HSet(ctx, "locked_templates", id, templateJSON).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
 		return
@@ -66,41 +86,30 @@ func lockTemplateHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked successfully"})
+	c.Data(http.StatusOK, "application/json", templateJSON)
 }
 
 func checkLockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
-	_, err := rdb.HExists(ctx, "locked_templates", id).Result()
+	templateJSON, err := rdb.HGet(ctx, "locked_templates", id).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "template not locked"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check lock status"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve template"})
 		return
 	}
 
-	// Retrieve expiration time of the key
-	expiration, err := rdb.TTL(ctx, "locked_templates").Result()
+	var template templateInfo
+	err = json.Unmarshal(templateJSON, &template)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unmarshal template data"})
 		return
 	}
 
-	if expiration.Seconds() <= 0 {
-		// If expiration time is negative or zero, delete the key-value pair
-		err := rdb.HDel(ctx, "locked_templates", id).Err()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to release lock"})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template released"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked"})
+	c.Data(http.StatusOK, "application/json", templateJSON)
 }
 
 func releaseLockTemplateHandler(c *gin.Context) {
@@ -112,7 +121,19 @@ func releaseLockTemplateHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
+	template := templateInfo{
+		ID:  id,
+		Msg: "template unlocked",
+	}
+
+	// Marshal templateInfo struct to JSON
+	templateJSON, err := json.Marshal(template)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal template data"})
+		return
+	}
+
+	c.Data(http.StatusOK, "application/json", templateJSON)
 }
 
 func getAllTemplatesHandler(c *gin.Context) {
@@ -128,14 +149,20 @@ func getAllTemplatesHandler(c *gin.Context) {
 
 	// Iterate over each key and get its remaining expiration time
 	for _, key := range keys {
-		expiration, err := rdb.TTL(ctx, key).Result()
+		templateJSON, err := rdb.HGet(ctx, "locked_templates", key).Bytes()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve template"})
 			return
 		}
-		// Convert expiration time to seconds without scientific notation
-		expirationSeconds := int(expiration.Seconds())
-		templates[key] = gin.H{"id": key, "time": expirationSeconds}
+
+		var template templateInfo
+		err = json.Unmarshal(templateJSON, &template)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unmarshal template data"})
+			return
+		}
+
+		templates[key] = template
 	}
 
 	c.JSON(http.StatusOK, templates)
@@ -145,7 +172,7 @@ func increaseLockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
 	// Check if the template exists
-	templateData, err := rdb.HGet(ctx, "locked_templates", id).Result()
+	templateJSON, err := rdb.HGet(ctx, "locked_templates", id).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "template not locked"})
@@ -155,33 +182,28 @@ func increaseLockTemplateHandler(c *gin.Context) {
 		return
 	}
 
-	// Parse the template data
-	var templateInfo struct {
-		ID   string `json:"id"`
-		Msg  string `json:"msg"`
-		Time int    `json:"time"`
-	}
-	err = json.Unmarshal([]byte(templateData), &templateInfo)
+	var template templateInfo
+	err = json.Unmarshal(templateJSON, &template)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse template data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unmarshal template data"})
 		return
 	}
 
 	// Increase expiration time by one minute
-	templateInfo.Time += 60
+	template.Time += 60
 
-	// Update template data in Redis
-	updatedTemplateData, err := json.Marshal(templateInfo)
+	// Marshal templateInfo struct to JSON
+	templateJSON, err = json.Marshal(template)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal template data"})
 		return
 	}
 
-	err = rdb.HSet(ctx, "locked_templates", id, updatedTemplateData).Err()
+	err = rdb.HSet(ctx, "locked_templates", id, templateJSON).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update expiration time"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "new_time": templateInfo.Time, "msg": "expiration time increased"})
+	c.Data(http.StatusOK, "application/json", templateJSON)
 }
