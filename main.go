@@ -39,91 +39,76 @@ func main() {
 
 
 func checkLockTemplateHandler(c *gin.Context) {
-	id := c.Param("id")
+    id := c.Param("id")
 
-	// Get expiration time of the locked template
-	expiration, err := rdb.TTL(ctx, "locked_templates").Result()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
-		return
-	}
+    // Get expiration time of the locked template
+    expiration, err := rdb.TTL(ctx, id).Result()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
+        return
+    }
 
-	if expiration.Seconds() <= 0 {
-		// If expiration time is negative or zero, delete the key-value pair
-		err := rdb.HDel(ctx, "locked_templates", id).Err()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to release lock"})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template released"})
-		return
-	}
+    if expiration.Seconds() <= 0 {
+        // If expiration time is negative or zero, the template is not locked
+        c.JSON(http.StatusNotFound, gin.H{"error": "template is not locked"})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked"})
+    c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked"})
 }
+
 
 func getAllTemplatesHandler(c *gin.Context) {
 	// Get all template keys
-	keys, err := rdb.HKeys(ctx, "locked_templates").Result()
+	keys, err := rdb.Keys(ctx, "*").Result()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve templates"})
 		return
 	}
 
-	// Initialize a map to store template IDs and their remaining expiration time
-	templates := make(map[string]interface{})
+	// Initialize a map to store template key-value pairs
+	templates := make(map[string]string)
 
-	// Iterate over each key and get its remaining expiration time
+	// Iterate over each key and get its value
 	for _, key := range keys {
-		// Get expiration time of the locked template
-		_, err := rdb.TTL(ctx, key).Result()
+		value, err := rdb.Get(ctx, key).Result()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get value for key"})
 			return
 		}
-
-		templates[key] = gin.H{"id": key}
+		templates[key] = value
 	}
 
 	c.JSON(http.StatusOK, templates)
 }
 
+
 func lockTemplateHandler(c *gin.Context) {
-	id := c.Param("id")
+    id := c.Param("id")
 
-	exists, err := rdb.HExists(ctx, "locked_templates", id).Result()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check lock status"})
-		return
-	}
+    // Check if the key already exists
+    _, err := rdb.Get(ctx, id).Result()
+    if err == nil {
+        c.JSON(http.StatusConflict, gin.H{"error": "template already locked"})
+        return
+    }
 
-	if exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "template already locked"})
-		return
-	}
-
-	// Set expiration time to 1 minute
 	expiration := time.Minute
 
-	err = rdb.HSet(ctx, "locked_templates", id, id).Err()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
-		return
-	}
+    // Store the ID as both key and value
+    err = rdb.Set(ctx, id, id, expiration).Err() // 0 means no expiration
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
+        return
+    }
 
-	err = rdb.Expire(ctx, "locked_templates", expiration).Err()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set expiration time"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked successfully"})
+    c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template locked successfully"})
 }
 
 func releaseLockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
-	err := rdb.HDel(ctx, "locked_templates", id).Err()
+	err := rdb.Del(ctx, id).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to release lock"})
 		return
