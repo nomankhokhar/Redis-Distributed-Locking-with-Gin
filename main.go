@@ -57,7 +57,6 @@ func checkLockTemplateHandler(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked"})
 }
 
-
 func getAllTemplatesHandler(c *gin.Context) {
 	// Get all template keys
 	keys, err := rdb.Keys(ctx, "*").Result()
@@ -81,7 +80,6 @@ func getAllTemplatesHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, templates)
 }
-
 
 func lockTemplateHandler(c *gin.Context) {
     id := c.Param("id")
@@ -118,22 +116,36 @@ func releaseLockTemplateHandler(c *gin.Context) {
 }
 
 func increaseLockTemplateHandler(c *gin.Context) {
-	id := c.Param("id")
+    id := c.Param("id")
 
-	// Set expiration time to 1 minute
-	expiration := time.Minute
+    // Set expiration time to 1 minute
+    expiration := time.Minute
 
-	err := rdb.HSet(ctx, "locked_templates", id, id).Err()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
-		return
-	}
+    // Check if the template with the provided ID exists
+    exists, err := rdb.Exists(ctx, id).Result()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check lock status"})
+        return
+    }
 
-	expireErr := rdb.Expire(ctx, "locked_templates", expiration).Err()
-	if expireErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set expiration time"})
-		return
-	}
+    if exists == 0 {
+        c.JSON(http.StatusNotFound, gin.H{"error": "template not found"})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked time is increased successfully"})
+    // Delete the existing key-value pair
+    err = rdb.Del(ctx, id).Err()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete existing key"})
+        return
+    }
+
+    // Store a new key-value pair with the provided ID and set the expiration time
+    err = rdb.Set(ctx, id, id, expiration).Err()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template lock time increased successfully"})
 }
