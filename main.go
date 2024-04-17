@@ -31,7 +31,7 @@ func main() {
 	router.GET("/api/checklocktemplate/:id", checkLockTemplateHandler)
 	router.DELETE("/api/releaselocktemplate/:id", releaseLockTemplateHandler)
 	router.GET("/api/alltemplates", getAllTemplatesHandler)
-	// router.PUT("/api/increaselocktemplate/:id", increaseLockTemplateHandler)
+	router.PUT("/api/increaselocktemplate/:id", increaseLockTemplateHandler)
 
 	router.Run(":8080")
 }
@@ -132,23 +132,23 @@ func releaseLockTemplateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
 }
 
-// func increaseLockTemplateHandler(c *gin.Context) {
-// 	id := c.Param("id")
+func increaseLockTemplateHandler(c *gin.Context) {
+	id := c.Param("id")
 
-// 	// Set expiration time to 1 minute
-// 	expiration := time.Minute
+	// Set expiration time to 1 minute
+	expiration := time.Minute
 
-// 	err := rdb.HSet(ctx, "locked_templates", id, id).Err()
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
-// 		return
-// 	}
+	err := rdb.HSet(ctx, "locked_templates", id, id).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
+		return
+	}
 
-// 	err := rdb.Expire(ctx, "locked_templates", expiration).Err()
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set expiration time"})
-// 		return
-// 	}
+	expireErr := rdb.Expire(ctx, "locked_templates", expiration).Err()
+	if expireErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set expiration time"})
+		return
+	}
 
-// 	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked successfully"})	
-// }
+	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked time is increased successfully"})
+}
