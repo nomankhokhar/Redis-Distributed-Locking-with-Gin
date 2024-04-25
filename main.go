@@ -125,7 +125,7 @@ func releaseLockTemplateHandler(c *gin.Context) {
 
 	err := rdb.Del(ctx, id).Err()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to release lock"})
+		c.JSON(http.StatusOK, gin.H{"error": "failed to release lock"})
 		return
 	}
 
