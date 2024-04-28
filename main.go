@@ -47,7 +47,7 @@ func main() {
 
 	router.POST("/api/locktemplate/:id", lockTemplateHandler)
 	router.GET("/api/checklocktemplate/:id", checkLockTemplateHandler)
-	router.DELETE("/api/releaselocktemplate/:id", releaseLockTemplateHandler)
+	router.DELETE("/releaselocktemplate/:id", releaseLockTemplateHandler)
 	router.GET("/api/alltemplates", getAllTemplatesHandler)
 	router.PUT("/api/increaselocktemplate/:id", increaseLockTemplateHandler)
 
