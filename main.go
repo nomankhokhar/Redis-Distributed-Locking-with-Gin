@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -47,7 +48,7 @@ func main() {
 
 	router.POST("/locktemplate/:id", lockTemplateHandler)
 	router.GET("/checklocktemplate/:id", checkLockTemplateHandler)
-	router.DELETE("/releaselocktemplate/:id", releaseLockTemplateHandler)
+	router.POST("/delete/", releaseLockTemplateHandler)
 	router.GET("/alltemplates", getAllTemplatesHandler)
 	router.PUT("/increaselocktemplate/:id", increaseLockTemplateHandler)
 
@@ -120,15 +121,16 @@ func lockTemplateHandler(c *gin.Context) {
 }
 
 func releaseLockTemplateHandler(c *gin.Context) {
-	id := c.Param("id")
+	value := c.Query("paramKey")
+	fmt.Println(value)
 
-	err := rdb.Del(ctx, id).Err()
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": "failed to release lock"})
-		return
-	}
+	// err := rdb.Del(ctx, id).Err()
+	// if err != nil {
+	// 	c.JSON(http.StatusOK, gin.H{"error": "failed to release lock"})
+	// 	return
+	// }
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
+	// c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
 }
 
 func increaseLockTemplateHandler(c *gin.Context) {
