@@ -121,16 +121,16 @@ func lockTemplateHandler(c *gin.Context) {
 }
 
 func releaseLockTemplateHandler(c *gin.Context) {
-	value := c.Query("paramKey")
-	fmt.Println(value)
+	id := c.Query("paramKey")
+	fmt.Println(id)
 
-	// err := rdb.Del(ctx, id).Err()
-	// if err != nil {
-	// 	c.JSON(http.StatusOK, gin.H{"error": "failed to release lock"})
-	// 	return
-	// }
+	err := rdb.Del(ctx, id).Err()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"error": "failed to release lock"})
+		return
+	}
 
-	// c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
+	c.JSON(http.StatusOK, gin.H{"id": id, "msg": "template unlocked"})
 }
 
 func increaseLockTemplateHandler(c *gin.Context) {
