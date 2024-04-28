@@ -45,11 +45,11 @@ func main() {
 
 	router.Use(CORS())
 
-	router.POST("/api/locktemplate/:id", lockTemplateHandler)
-	router.GET("/api/checklocktemplate/:id", checkLockTemplateHandler)
+	router.POST("/locktemplate/:id", lockTemplateHandler)
+	router.GET("/checklocktemplate/:id", checkLockTemplateHandler)
 	router.DELETE("/releaselocktemplate/:id", releaseLockTemplateHandler)
-	router.GET("/api/alltemplates", getAllTemplatesHandler)
-	router.PUT("/api/increaselocktemplate/:id", increaseLockTemplateHandler)
+	router.GET("/alltemplates", getAllTemplatesHandler)
+	router.PUT("/increaselocktemplate/:id", increaseLockTemplateHandler)
 
 	router.Run(":8080")
 }
