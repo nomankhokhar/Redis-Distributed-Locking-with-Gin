@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -43,14 +42,13 @@ func CORS() gin.HandlerFunc {
 
 func main() {
 	router := gin.Default()
-
 	router.Use(CORS())
 
 	router.POST("/locktemplate/:id", lockTemplateHandler)
 	router.GET("/checklocktemplate/:id", checkLockTemplateHandler)
 	router.POST("/delete/", releaseLockTemplateHandler)
 	router.GET("/alltemplates", getAllTemplatesHandler)
-	router.PUT("/increaselocktemplate/:id", increaseLockTemplateHandler)
+	router.PUT("/increastime/", increaseLockTemplateHandler)
 
 	router.Run(":8080")
 }
@@ -133,7 +131,7 @@ func releaseLockTemplateHandler(c *gin.Context) {
 }
 
 func increaseLockTemplateHandler(c *gin.Context) {
-	id := c.Param("id")
+	id := c.Query("paramKey")
 
 	// Set expiration time to 1 minute
 	expiration := time.Minute * 3
