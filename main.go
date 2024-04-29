@@ -56,7 +56,6 @@ func main() {
 func checkLockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
-	// Get expiration time of the locked template
 	expiration, err := rdb.TTL(ctx, id).Result()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
@@ -73,17 +72,14 @@ func checkLockTemplateHandler(c *gin.Context) {
 }
 
 func getAllTemplatesHandler(c *gin.Context) {
-	// Get all template keys
 	keys, err := rdb.Keys(ctx, "*").Result()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve templates"})
 		return
 	}
 
-	// Initialize a map to store template key-value pairs
 	templates := make(map[string]string)
 
-	// Iterate over each key and get its value
 	for _, key := range keys {
 		value, err := rdb.Get(ctx, key).Result()
 		if err != nil {
@@ -99,16 +95,14 @@ func getAllTemplatesHandler(c *gin.Context) {
 func lockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
-	// Check if the key already exists
 	_, err := rdb.Get(ctx, id).Result()
 	if err == nil {
 		c.JSON(http.StatusOK, gin.H{"id": id, "error": "template already locked"})
 		return
 	}
 
-	expiration := time.Minute * 3
+	expiration := time.Minute * 15
 
-	// Store the ID as both key and value
 	err = rdb.Set(ctx, id, id, expiration).Err() // 0 means no expiration
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
@@ -133,10 +127,8 @@ func releaseLockTemplateHandler(c *gin.Context) {
 func increaseLockTemplateHandler(c *gin.Context) {
 	id := c.Query("paramKey")
 
-	// Set expiration time to 1 minute
-	expiration := time.Minute * 3
+	expiration := time.Minute * 15
 
-	// Check if the template with the provided ID exists
 	exists, err := rdb.Exists(ctx, id).Result()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": "failed to check lock status"})
@@ -148,14 +140,12 @@ func increaseLockTemplateHandler(c *gin.Context) {
 		return
 	}
 
-	// Delete the existing key-value pair
 	err = rdb.Del(ctx, id).Err()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": "failed to delete existing key"})
 		return
 	}
 
-	// Store a new key-value pair with the provided ID and set the expiration time
 	err = rdb.Set(ctx, id, id, expiration).Err()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": "failed to lock template"})
