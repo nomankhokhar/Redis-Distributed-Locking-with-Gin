@@ -122,7 +122,6 @@ func lockTemplateHandler(c *gin.Context) {
 
 func releaseLockTemplateHandler(c *gin.Context) {
 	id := c.Query("paramKey")
-	fmt.Println(id)
 
 	err := rdb.Del(ctx, id).Err()
 	if err != nil {
