@@ -1,7 +1,6 @@
 package main
 
 import (
-	"Redis-Distributed-Locking-with-Gin-go/functions"
 	"context"
 
 	"github.com/gin-gonic/gin"
@@ -24,15 +23,10 @@ func init() {
 	}
 }
 
-func CORS() gin.HandlerFunc {
-	return functions.CORS()
-}
-
 func main() {
 	router := gin.Default()
-	router.Use(CORS())
 
-	functions.RegisterHandlers(router, rdb)
+	handlers.RegisterHandlers(router, rdb)
 
 	router.Run(":8080")
 }
