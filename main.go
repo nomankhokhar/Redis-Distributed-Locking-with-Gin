@@ -56,6 +56,11 @@ func main() {
 func checkLockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+		return
+	}
+
 	expiration, err := rdb.TTL(ctx, id).Result()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get expiration time"})
@@ -63,12 +68,11 @@ func checkLockTemplateHandler(c *gin.Context) {
 	}
 
 	if expiration.Seconds() <= 0 {
-		// If expiration time is negative or zero, the template is not locked
 		c.JSON(http.StatusNotFound, gin.H{"error": "template is not locked"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template locked"})
+	c.JSON(http.StatusOK, gin.H{"id": id, "time": expiration.Seconds(), "msg": "template is locked"})
 }
 
 func getAllTemplatesHandler(c *gin.Context) {
@@ -95,6 +99,11 @@ func getAllTemplatesHandler(c *gin.Context) {
 func lockTemplateHandler(c *gin.Context) {
 	id := c.Param("id")
 
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+		return
+	}
+
 	_, err := rdb.Get(ctx, id).Result()
 	if err == nil {
 		c.JSON(http.StatusOK, gin.H{"id": id, "error": "template already locked"})
@@ -103,7 +112,7 @@ func lockTemplateHandler(c *gin.Context) {
 
 	expiration := time.Minute * 15
 
-	err = rdb.Set(ctx, id, id, expiration).Err() // 0 means no expiration
+	err = rdb.Set(ctx, id, id, expiration).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock template"})
 		return
@@ -114,6 +123,11 @@ func lockTemplateHandler(c *gin.Context) {
 
 func releaseLockTemplateHandler(c *gin.Context) {
 	id := c.Query("paramKey")
+
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+		return
+	}
 
 	err := rdb.Del(ctx, id).Err()
 	if err != nil {
@@ -126,6 +140,11 @@ func releaseLockTemplateHandler(c *gin.Context) {
 
 func increaseLockTemplateHandler(c *gin.Context) {
 	id := c.Query("paramKey")
+
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id not empty"})
+		return
+	}
 
 	expiration := time.Minute * 15
 
